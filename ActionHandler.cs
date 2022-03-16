@@ -37,7 +37,7 @@ internal class ActionHandler
         }
         catch (Exception ex)
         {
-            Utils.WriteLine(ex.Message, 3);
+            Common.Utils.WriteLine(ex.Message, 3);
         }
     }
     public void SendMessage(ActionData actionData)
@@ -71,7 +71,7 @@ internal class ActionHandler
         }
         catch (Exception ex)
         {
-            Utils.WriteLine(ex.Message, 3);
+            Common.Utils.WriteLine(ex.Message, 3);
         }
     }
     public void DeleteMessage(ActionData actionData)
@@ -84,7 +84,7 @@ internal class ActionHandler
         }
         catch (Exception ex)
         {
-            Utils.WriteLine(ex.Message, 3);
+            Common.Utils.WriteLine(ex.Message, 3);
         }
     }
     public void PinMessage(ActionData actionData)
@@ -100,7 +100,7 @@ internal class ActionHandler
         }
         catch (Exception ex)
         {
-            Utils.WriteLine(ex.Message, 3);
+            Common.Utils.WriteLine(ex.Message, 3);
         }
     }
 }

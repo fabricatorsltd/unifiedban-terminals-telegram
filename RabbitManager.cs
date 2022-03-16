@@ -38,7 +38,7 @@ internal class RabbitManager
 
     public void Init()
     {
-        Utils.WriteLine("Creating RabbitMQ instance...");
+        Common.Utils.WriteLine("Creating RabbitMQ instance...");
 
         var factory = new ConnectionFactory();
         factory.UserName = CacheData.Configuration?["RabbitMQ:UserName"];
@@ -48,7 +48,7 @@ internal class RabbitManager
         factory.Port = int.Parse(CacheData.Configuration?["RabbitMQ:Port"] ?? "0");
         factory.DispatchConsumersAsync = true;
 
-        Utils.WriteLine("Connecting to RabbitMQ server...");
+        Common.Utils.WriteLine("Connecting to RabbitMQ server...");
         _conn = factory.CreateConnection();
     }
 
@@ -64,7 +64,7 @@ internal class RabbitManager
         var fanoutConsumer = new AsyncEventingBasicConsumer(_fanoutChannel);
         fanoutConsumer.Received += FanoutConsumerOnReceived;
         
-        Utils.WriteLine("Start consuming queues...");
+        Common.Utils.WriteLine("Start consuming queues...");
         _resultsChannel.BasicConsume("tg.results", false, resultsConsumer);
         _fanoutChannel.BasicConsume("tg.terminal.fanout", false, fanoutConsumer);
     }
@@ -89,8 +89,8 @@ internal class RabbitManager
         }
         catch (Exception ex)
         {
-            Utils.WriteLine(ex.Message, 3);
-            Utils.WriteLine(ex.InnerException?.Message, 3);
+            Common.Utils.WriteLine(ex.Message, 3);
+            Common.Utils.WriteLine(ex.InnerException?.Message, 3);
         }
 
         _resultsChannel!.BasicAck(ea.DeliveryTag, false);

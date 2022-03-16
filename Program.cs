@@ -44,7 +44,7 @@ internal static class Program
         AppDomain.CurrentDomain.UnhandledException += CurrentDomainOnUnhandledException;
         AppDomain.CurrentDomain.ProcessExit += CurrentDomainOnProcessExit;
 
-        Utils.WriteLine($"== {AppDomain.CurrentDomain.FriendlyName} Startup ==");
+        Common.Utils.WriteLine($"== {AppDomain.CurrentDomain.FriendlyName} Startup ==");
 
         var builder = new ConfigurationBuilder()
             .SetBasePath(Environment.CurrentDirectory)
@@ -52,33 +52,35 @@ internal static class Program
         CacheData.Configuration = builder.Build();
         _ = new Models.UBContext(CacheData.Configuration["Database"]);
         
-        Utils.WriteLine("Registering instance");
+        Common.Utils.WriteLine("Registering instance");
         Utils.RegisterInstance();
-        Utils.WriteLine("***************************************");
+        Common.Utils.WriteLine("***************************************");
         SetHeartbeat();
-        Utils.WriteLine("***************************************");
+        Common.Utils.WriteLine("***************************************");
         Utils.GetModulesQueues();
-        Utils.WriteLine("***************************************");
+        Common.Utils.WriteLine("***************************************");
+        CacheData.Load();
+        Common.Utils.WriteLine("***************************************");
         _telegramManager.Init();
-        Utils.WriteLine("***************************************");
+        Common.Utils.WriteLine("***************************************");
         _rabbitManager.Init();
-        Utils.WriteLine("***************************************");
+        Common.Utils.WriteLine("***************************************");
         Task.Run(_telegramManager.Start);
-        Utils.WriteLine("***************************************");
+        Common.Utils.WriteLine("***************************************");
         Task.Run(_rabbitManager.Start);
-        Utils.WriteLine("***************************************");
+        Common.Utils.WriteLine("***************************************");
         Utils.SetInstanceStatus(Enums.States.Operational);
-        Utils.WriteLine("Startup completed.\n");
+        Common.Utils.WriteLine("Startup completed.\n");
 
         Console.ReadLine();
 
-        Utils.WriteLine("Manual shutdown started.\n");
+        Common.Utils.WriteLine("Manual shutdown started.\n");
         _manualShutdown = true;
         DoShutdown();
     }
     private static void SetHeartbeat()
     {
-        Utils.WriteLine($"Starting Hearthbeat " +
+        Common.Utils.WriteLine($"Starting Hearthbeat " +
                         $"(every {CacheData.Configuration["UptimeMonitor:Seconds"]} seconds)");
         Heartbeat.AutoReset = true;
         Heartbeat.Interval = 1000 * int.Parse(CacheData.Configuration["UptimeMonitor:Seconds"]);
@@ -99,20 +101,20 @@ internal static class Program
     private static void CurrentDomainOnProcessExit(object? sender, EventArgs e)
     {
         if (_manualShutdown) return;
-        Utils.WriteLine("SIGTERM shutdown started.\n");
+        Common.Utils.WriteLine("SIGTERM shutdown started.\n");
         DoShutdown();
     }
     private static void DoShutdown()
     {
-        Utils.WriteLine("Stopping Heartbeat");
+        Common.Utils.WriteLine("Stopping Heartbeat");
         Heartbeat.Stop();
-        Utils.WriteLine("Stopping Telegram client");
+        Common.Utils.WriteLine("Stopping Telegram client");
         _telegramManager.Stop();
-        Utils.WriteLine("Closing RabbitMQ connection");
+        Common.Utils.WriteLine("Closing RabbitMQ connection");
         _rabbitManager.Shutdown();
-        Utils.WriteLine("Deregistering instance");
+        Common.Utils.WriteLine("Deregistering instance");
         Utils.DeregisterInstance();
-        Utils.WriteLine("***************************************");
-        Utils.WriteLine("Shutdown completed.");
+        Common.Utils.WriteLine("***************************************");
+        Common.Utils.WriteLine("Shutdown completed.");
     }
 }

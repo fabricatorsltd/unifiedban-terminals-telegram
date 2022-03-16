@@ -31,46 +31,6 @@ internal class Utils
 {
     private static readonly BusinessLogic.Log.InstanceLogic _instanceLogic = new();
     private static readonly BusinessLogic.ModuleLogic _moduleLogic = new();
-    internal static void WriteLine(string? message, int severity = 1)
-    {
-        Console.Write("{0} ", DateTime.UtcNow);
-
-        var prefix = "[info]";
-
-        switch (severity)
-        {
-            case -1:
-                prefix = "[trace]";
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                break;
-            case 0:
-                prefix = "[debug]";
-                Console.ForegroundColor = ConsoleColor.Green;
-                break;
-            case 2:
-                prefix = "[warn]";
-                Console.ForegroundColor = ConsoleColor.DarkYellow;
-                break;
-            case 3:
-                prefix = "[error]";
-                Console.ForegroundColor = ConsoleColor.Red;
-                break;
-            case 4:
-                prefix = "[fatal]";
-                Console.BackgroundColor = ConsoleColor.Red;
-                Console.ForegroundColor = ConsoleColor.White;
-                break;
-            default:
-                prefix = "[info]";
-                Console.ForegroundColor = ConsoleColor.White;
-                break;
-        }
-
-        Console.Write(prefix);
-        Console.ResetColor();
-        Console.Write(" - {0}", message);
-        Console.Write(Environment.NewLine);
-    }
 
     internal static void RegisterInstance()
     {
@@ -85,20 +45,20 @@ internal class Utils
         var registered = _instanceLogic.Add(newInstance);
         if (registered.StatusCode != 200)
         {
-            WriteLine("***************************************", 4);
-            WriteLine("Error registering instance.", 4);
-            WriteLine(registered.StatusDescription, 4);
+            Common.Utils.WriteLine("***************************************", 4);
+            Common.Utils.WriteLine("Error registering instance.", 4);
+            Common.Utils.WriteLine(registered.StatusDescription, 4);
             Environment.Exit(0);
         }
             
         CacheData.Instance = registered.Payload;
-        WriteLine($"== InstanceId {CacheData.Instance?.InstanceId} ==");
+        Common.Utils.WriteLine($"== InstanceId {CacheData.Instance?.InstanceId} ==");
     }
     internal static void DeregisterInstance()
     {
         if (CacheData.Instance is null)
         {
-            WriteLine("Trying to deregister instance but is null", 3);
+            Common.Utils.WriteLine("Trying to deregister instance but is null", 3);
             return;
         }
 
@@ -106,15 +66,15 @@ internal class Utils
         CacheData.Instance.Status = Enums.States.Stopped;
         var updated = _instanceLogic.Update(CacheData.Instance!);
         if (updated.StatusCode == 200) return;
-        WriteLine("***************************************", 3);
-        WriteLine("Error deregistering instance.", 3);
-        WriteLine(updated.StatusDescription, 3);
+        Common.Utils.WriteLine("***************************************", 3);
+        Common.Utils.WriteLine("Error deregistering instance.", 3);
+        Common.Utils.WriteLine(updated.StatusDescription, 3);
     }
     internal static void SetInstanceStatus(Enums.States state)
     {
         if (CacheData.Instance is null)
         {
-            WriteLine("Trying to set instance but is null", 3);
+            Common.Utils.WriteLine("Trying to set instance but is null", 3);
             return;
         }
         
@@ -125,21 +85,21 @@ internal class Utils
 
     internal static void GetModulesQueues()
     {
-        WriteLine("Getting modules queues");
+        Common.Utils.WriteLine("Getting modules queues");
         var modules = _moduleLogic.GetModules().Payload;
         // modules are already ordered by priority
         var joinModule = modules.FirstOrDefault(x => x.MessageCategory == Enums.QueueMessageCategories.MemberJoin);
         if (joinModule is not null)
         {
             CacheData.MemberJoinQueue = (joinModule.Exchange, joinModule.RoutingKey);
-            WriteLine($"MemberJoinQueue ({joinModule.Exchange}, {joinModule.RoutingKey})");
+            Common.Utils.WriteLine($"MemberJoinQueue ({joinModule.Exchange}, {joinModule.RoutingKey})");
         }
 
         var messageModule = modules.FirstOrDefault(x => x.MessageCategory == Enums.QueueMessageCategories.Base);
         if (messageModule is not null)
         {
             CacheData.MessageBaseQueue = (messageModule.Exchange, messageModule.RoutingKey);
-            WriteLine($"MessageBaseQueue ({messageModule.Exchange}, {messageModule.RoutingKey})");
+            Common.Utils.WriteLine($"MessageBaseQueue ({messageModule.Exchange}, {messageModule.RoutingKey})");
         }
     }
 }

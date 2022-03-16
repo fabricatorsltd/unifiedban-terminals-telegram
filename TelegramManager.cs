@@ -50,7 +50,7 @@ internal class GetUserPriviliges
 
     public void Init()
     {
-        Utils.WriteLine("Initializing Telegram client");
+        Common.Utils.WriteLine("Initializing Telegram client");
 
         _totalMessages = 0;
 
@@ -79,14 +79,14 @@ internal class GetUserPriviliges
         {
             var me = BotClient!.GetMeAsync().Result;
             _myId = me.Id;
-            Utils.WriteLine($"Start listening for @{me.Username}");
+            Common.Utils.WriteLine($"Start listening for @{me.Username}");
 
             LoadChatPermissions();
         }
         catch (Exception ex)
         {
             // TODO - stop startup
-            Utils.WriteLine($"Can't start: {ex.Message}", 3);
+            Common.Utils.WriteLine($"Can't start: {ex.Message}", 3);
             return;
         }
 
@@ -119,13 +119,13 @@ internal class GetUserPriviliges
         }
         catch (OperationCanceledException exception)
         {
-            Utils.WriteLine($"_updateReceiver OperationCanceledException: {exception.Message} (Stopping?)", 2);
-            Utils.WriteLine($"_updateReceiver OperationCanceledException: {exception.InnerException?.Message} (Stopping?)", 2);
+            Common.Utils.WriteLine($"_updateReceiver OperationCanceledException: {exception.Message} (Stopping?)", 2);
+            Common.Utils.WriteLine($"_updateReceiver OperationCanceledException: {exception.InnerException?.Message} (Stopping?)", 2);
         }
         catch (Exception ex)
         {
-            Utils.WriteLine($"_updateReceiver Exception: {ex.Message}", 3);
-            Utils.WriteLine($"_updateReceiver Exception: {ex.InnerException?.Message}", 3);
+            Common.Utils.WriteLine($"_updateReceiver Exception: {ex.Message}", 3);
+            Common.Utils.WriteLine($"_updateReceiver Exception: {ex.InnerException?.Message}", 3);
         }
     }
     public void Stop()
@@ -198,7 +198,7 @@ internal class GetUserPriviliges
                 return;
             case MessageType.Unknown:
             default:
-                Utils.WriteLine($"Received message of Type {message.Type.ToString()} that has no handler");
+                Common.Utils.WriteLine($"Received message of Type {message.Type.ToString()} that has no handler");
                 return;
         }
     }
@@ -300,16 +300,16 @@ internal class GetUserPriviliges
         if (!CacheData.Chats.ContainsKey(message.Chat.Id)) return;
         if (message.From is null)
         {
-            Utils.WriteLine("Received message with null sender (message.From)");
+            Common.Utils.WriteLine("Received message with null sender (message.From)");
             return;
         }
         if(message.Text is null)
         {
-            Utils.WriteLine("Received message with null text (message.Text)");
+            Common.Utils.WriteLine("Received message with null text (message.Text)");
             return;
         }
         
-        Utils.WriteLine(message.EditDate is null ? $"New msg: {message.Text}" : $"Edited msg: {message.Text}", 0);
+        Common.Utils.WriteLine(message.EditDate is null ? $"New msg: {message.Text}" : $"Edited msg: {message.Text}", 0);
 
         var botPrivileges = new UserPrivileges();
         if (CacheData.BotPermissions.ContainsKey(message.Chat.Id))
@@ -472,14 +472,14 @@ internal class GetUserPriviliges
             creator = admins.FirstOrDefault(x => x.Status == ChatMemberStatus.Creator);
             if (creator is null)
             {
-                Utils.WriteLine($"Can't register new chat {message.Chat.Id} since can't get creator", 3);
+                Common.Utils.WriteLine($"Can't register new chat {message.Chat.Id} since can't get creator", 3);
                 SendToControlChat($"Can't register new chat {message.Chat.Id} since can't get creator");
                 return;
             }
         }
         catch (Exception ex)
         {
-            Utils.WriteLine($"Can't register new chat {message.Chat.Id}: {ex.Message}", 2);
+            Common.Utils.WriteLine($"Can't register new chat {message.Chat.Id}: {ex.Message}", 2);
             return;
         }
         
@@ -492,7 +492,7 @@ internal class GetUserPriviliges
             CacheData.Chats.Add(message.Chat.Id, newChat.Payload);
             return;
         }
-        Utils.WriteLine($"Can't register new chat {message.Chat.Id} with error: {newChat.StatusDescription}", 3);
+        Common.Utils.WriteLine($"Can't register new chat {message.Chat.Id} with error: {newChat.StatusDescription}", 3);
         SendToControlChat($"Can't register new chat {message.Chat.Id} with error: {newChat.StatusDescription}");
     }
     private void SendToControlChat(string message)
@@ -501,28 +501,28 @@ internal class GetUserPriviliges
     }
     private void LoadChatPermissions()
     {
-        Utils.WriteLine("Getting permissions from chat(s)");
+        Common.Utils.WriteLine("Getting permissions from chat(s)");
             
         var chatMember = BotClient!.GetChatMemberAsync(_testChatId, _myId).Result;
         switch (chatMember.Status)
         {
             case ChatMemberStatus.Member:
-                Utils.WriteLine("Chat member is type of Member");
+                Common.Utils.WriteLine("Chat member is type of Member");
                 break;
             case ChatMemberStatus.Restricted:
-                Utils.WriteLine("Chat member is type of Restricted");
+                Common.Utils.WriteLine("Chat member is type of Restricted");
                 break;
             case ChatMemberStatus.Creator:
-                Utils.WriteLine("Chat member is type of Restricted");
+                Common.Utils.WriteLine("Chat member is type of Restricted");
                 break;
             case ChatMemberStatus.Administrator:
-                Utils.WriteLine("Chat member is type of Administrator");
+                Common.Utils.WriteLine("Chat member is type of Administrator");
                 break;
             case ChatMemberStatus.Left:
-                Utils.WriteLine("Chat member is type of Left");
+                Common.Utils.WriteLine("Chat member is type of Left");
                 break;
             case ChatMemberStatus.Kicked:
-                Utils.WriteLine("Chat member is type of Kicked");
+                Common.Utils.WriteLine("Chat member is type of Kicked");
                 break;
             default:
                 throw new ArgumentOutOfRangeException();

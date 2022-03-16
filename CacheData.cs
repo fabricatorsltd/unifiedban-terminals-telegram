@@ -21,6 +21,7 @@ https://docs.fabricators.ltd/docs/licenses/faq */
 
 using System.Collections.Generic;
 using Microsoft.Extensions.Configuration;
+using Unifiedban.Next.BusinessLogic.Telegram;
 using Unifiedban.Next.Common.Telegram;
 using Unifiedban.Next.Models.Log;
 using Unifiedban.Next.Models.Telegram;
@@ -41,4 +42,18 @@ internal class CacheData
 
     internal static (string Exchange, string RoutingKey) MemberJoinQueue = ("telegram", "join");
     internal static (string Exchange, string RoutingKey) MessageBaseQueue = ("checks", "base");
+
+    internal static void Load()
+    {
+        Common.Utils.WriteLine("Loading cache");
+
+        var chatLogic = new TGChatLogic();
+        foreach (var chat in chatLogic.Get().Payload)
+        {
+            Chats.Add(chat.TelegramChatId, chat);
+            MessageQueueManager.AddGroupIfNotPresent(chat);
+        }
+            
+        Common.Utils.WriteLine("Loading cache completed");
+    }
 }
