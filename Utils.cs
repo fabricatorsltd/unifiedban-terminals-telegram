@@ -127,6 +127,7 @@ internal class Utils
     {
         WriteLine("Getting modules queues");
         var modules = _moduleLogic.GetModules().Payload;
+        // modules are already ordered by priority
         var joinModule = modules.FirstOrDefault(x => x.MessageCategory == Enums.QueueMessageCategories.MemberJoin);
         if (joinModule is not null)
         {

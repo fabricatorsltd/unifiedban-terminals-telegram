@@ -50,7 +50,10 @@ internal class RabbitManager
 
         Utils.WriteLine("Connecting to RabbitMQ server...");
         _conn = factory.CreateConnection();
-        
+    }
+
+    public void Start()
+    {
         _resultsChannel = _conn.CreateModel();
         _resultsProperties = _resultsChannel.CreateBasicProperties();
         var resultsConsumer = new AsyncEventingBasicConsumer(_resultsChannel);
@@ -60,7 +63,7 @@ internal class RabbitManager
         _resultsProperties = _fanoutChannel.CreateBasicProperties();
         var fanoutConsumer = new AsyncEventingBasicConsumer(_fanoutChannel);
         fanoutConsumer.Received += FanoutConsumerOnReceived;
-
+        
         Utils.WriteLine("Start consuming queues...");
         _resultsChannel.BasicConsume("tg.results", false, resultsConsumer);
         _fanoutChannel.BasicConsume("tg.terminal.fanout", false, fanoutConsumer);
@@ -96,6 +99,8 @@ internal class RabbitManager
 
     private async Task FanoutConsumerOnReceived(object sender, BasicDeliverEventArgs ea)
     {
+        var body = ea.Body.ToArray();
+        var str = System.Text.Encoding.Default.GetString(body);
         
     }
     internal static void PublishMessage(string exchange, string routingKey, byte[] body)

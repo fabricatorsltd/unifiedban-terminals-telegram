@@ -48,7 +48,7 @@ internal class GetUserPriviliges
     private long _myId = 0;
     private long _testChatId = 0;
 
-    public async void Init()
+    public void Init()
     {
         Utils.WriteLine("Initializing Telegram client");
 
@@ -72,13 +72,23 @@ internal class GetUserPriviliges
 
         MessageQueueManager.Initialize();
         MessageQueueManager.AddGroupIfNotPresent(CacheData.Chats[-1001324395059]);
+    }
+    public async void Start()
+    {
+        try
+        {
+            var me = BotClient!.GetMeAsync().Result;
+            _myId = me.Id;
+            Utils.WriteLine($"Start listening for @{me.Username}");
 
-        var me = BotClient.GetMeAsync().Result;
-        _myId = me.Id;
-            
-        LoadChatPermissions();
-            
-        Console.WriteLine($"Start listening for @{me.Username}");
+            LoadChatPermissions();
+        }
+        catch (Exception ex)
+        {
+            // TODO - stop startup
+            Utils.WriteLine($"Can't start: {ex.Message}", 3);
+            return;
+        }
 
         var receiverOptions = new ReceiverOptions
         {
@@ -194,6 +204,7 @@ internal class GetUserPriviliges
     }
     private async void HandleUpdateMember(ChatMemberUpdated update)
     {
+        if (!CacheData.Chats.ContainsKey(update.Chat.Id)) return;
         if (update.NewChatMember is ChatMemberAdministrator chatMemberAdministrator)
         {
             if (update.NewChatMember.User.Id == _myId)
@@ -275,6 +286,7 @@ internal class GetUserPriviliges
     }
     private async void HandleJoinRequestAsync(ChatJoinRequest chatJoinRequest)
     {
+        if (!CacheData.Chats.ContainsKey(chatJoinRequest.Chat.Id)) return;
 #if DEBUG
         await BotClient!.SendTextMessageAsync(
             chatJoinRequest.Chat,
@@ -285,6 +297,7 @@ internal class GetUserPriviliges
     }
     private async void HandleBaseMessage(Message message)
     {
+        if (!CacheData.Chats.ContainsKey(message.Chat.Id)) return;
         if (message.From is null)
         {
             Utils.WriteLine("Received message with null sender (message.From)");
@@ -296,7 +309,7 @@ internal class GetUserPriviliges
             return;
         }
         
-        Utils.WriteLine(message.EditDate is null ? $"New msg: {message.Text}" : $"Edited msg: {message.Text}");
+        Utils.WriteLine(message.EditDate is null ? $"New msg: {message.Text}" : $"Edited msg: {message.Text}", 0);
 
         var botPrivileges = new UserPrivileges();
         if (CacheData.BotPermissions.ContainsKey(message.Chat.Id))
@@ -326,6 +339,7 @@ internal class GetUserPriviliges
     }
     private async void HandleMemberJoin(Message message)
     {
+        if (!CacheData.Chats.ContainsKey(message.Chat.Id)) return;
         // TODO - if group activated delete join system message, remove it
         var botPrivileges = new UserPrivileges();
 
@@ -352,10 +366,12 @@ internal class GetUserPriviliges
     }
     private async void HandleMemberLeft(Message message)
     {
+        if (!CacheData.Chats.ContainsKey(message.Chat.Id)) return;
         // TODO - if group activated delete left system message, remove it
     }
     private async void HandleChatDetailUpdate(Message message)
     {
+        if (!CacheData.Chats.ContainsKey(message.Chat.Id)) return;
         // TODO - update chat details on database
     }
     private async void HandleChatCreation(Message message)
@@ -449,20 +465,33 @@ internal class GetUserPriviliges
     }
     private async void RegisterNewChat(Message message)
     {
-        var admins = await BotClient!.GetChatAdministratorsAsync(message.Chat!);
-        var creator = admins.FirstOrDefault(x => x.Status == ChatMemberStatus.Creator);
-        if (creator is null)
+        ChatMember? creator;
+        try
         {
-            Utils.WriteLine($"Can't register new chat {message.Chat.Id} since can't get creator", 3);
-            SendToControlChat($"Can't register new chat {message.Chat.Id} since can't get creator");
+            var admins = await BotClient!.GetChatAdministratorsAsync(message.Chat!);
+            creator = admins.FirstOrDefault(x => x.Status == ChatMemberStatus.Creator);
+            if (creator is null)
+            {
+                Utils.WriteLine($"Can't register new chat {message.Chat.Id} since can't get creator", 3);
+                SendToControlChat($"Can't register new chat {message.Chat.Id} since can't get creator");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Utils.WriteLine($"Can't register new chat {message.Chat.Id}: {ex.Message}", 2);
             return;
         }
-            
+        
         var logic = new TGChatLogic();
         var newChat = logic.Register(message.Chat.Id, message.Chat.Title ?? "", 
             long.Parse(CacheData.Configuration?["Telegram:ControlChatId"] ?? "0"), 
             message.From?.LanguageCode ?? "en", creator.User.Id);
-        if (newChat.StatusCode == 0) return;
+        if (newChat.StatusCode == 200)
+        {
+            CacheData.Chats.Add(message.Chat.Id, newChat.Payload);
+            return;
+        }
         Utils.WriteLine($"Can't register new chat {message.Chat.Id} with error: {newChat.StatusDescription}", 3);
         SendToControlChat($"Can't register new chat {message.Chat.Id} with error: {newChat.StatusDescription}");
     }

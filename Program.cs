@@ -22,6 +22,7 @@ https://docs.fabricators.ltd/docs/licenses/faq */
 using System;
 using System.Net.Http;
 using System.Reflection;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Unifiedban.Next.BusinessLogic.Log;
 using Unifiedban.Next.Common;
@@ -37,7 +38,7 @@ internal static class Program
 
     private static readonly GetUserPriviliges _telegramManager = new();
     private static readonly RabbitManager _rabbitManager = new();
-        
+    
     private static void Main(string[] args)
     {
         AppDomain.CurrentDomain.UnhandledException += CurrentDomainOnUnhandledException;
@@ -61,6 +62,10 @@ internal static class Program
         _telegramManager.Init();
         Utils.WriteLine("***************************************");
         _rabbitManager.Init();
+        Utils.WriteLine("***************************************");
+        Task.Run(_telegramManager.Start);
+        Utils.WriteLine("***************************************");
+        Task.Run(_rabbitManager.Start);
         Utils.WriteLine("***************************************");
         Utils.SetInstanceStatus(Enums.States.Operational);
         Utils.WriteLine("Startup completed.\n");
