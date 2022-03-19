@@ -48,6 +48,9 @@ internal class GetUserPriviliges
     private long _myId = 0;
     private long _testChatId = 0;
 
+    private Dictionary<long, List<Message>> _registrationInProgress = new();
+    private object _regInProgObject = new ();
+    
     public void Init()
     {
         Common.Utils.WriteLine("Initializing Telegram client");
@@ -145,7 +148,25 @@ internal class GetUserPriviliges
                 return;
             }
 
-            RegisterNewChat(message);
+            if (!_registrationInProgress.ContainsKey(message.Chat.Id))
+            {
+                _registrationInProgress.Add(message.Chat.Id, new List<Message>());
+                RegisterNewChat(message);
+            }
+
+            lock (_regInProgObject)
+            {
+                _registrationInProgress[message.Chat.Id].Add(message);
+            }
+
+            return;
+        } 
+        else if (_registrationInProgress.ContainsKey(message.Chat.Id))
+        {
+            lock (_regInProgObject)
+            {
+                _registrationInProgress[message.Chat.Id].Add(message);
+            }
             return;
         }
 
@@ -490,10 +511,24 @@ internal class GetUserPriviliges
         if (newChat.StatusCode == 200)
         {
             CacheData.Chats.Add(message.Chat.Id, newChat.Payload);
+            MessageQueueManager.AddGroupIfNotPresent(CacheData.Chats[message.Chat.Id]);
+            HandleRegistrationMessages(message.Chat.Id);
             return;
         }
         Common.Utils.WriteLine($"Can't register new chat {message.Chat.Id} with error: {newChat.StatusDescription}", 3);
         SendToControlChat($"Can't register new chat {message.Chat.Id} with error: {newChat.StatusDescription}");
+    }
+
+    private void HandleRegistrationMessages(long chatId)
+    {
+        List<Message> toHandle;
+        lock (_regInProgObject)
+        {
+            toHandle = new List<Message>(_registrationInProgress[chatId]);
+            _registrationInProgress.Remove(chatId);
+        }
+        foreach (var message in toHandle)
+            HandleMessageAsync(message);
     }
     private void SendToControlChat(string message)
     {

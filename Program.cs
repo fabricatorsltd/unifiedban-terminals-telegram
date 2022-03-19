@@ -21,12 +21,10 @@ https://docs.fabricators.ltd/docs/licenses/faq */
 
 using System;
 using System.Net.Http;
-using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
-using Unifiedban.Next.BusinessLogic.Log;
 using Unifiedban.Next.Common;
-using Unifiedban.Next.Models.Log;
+using Unifiedban.Next.Models;
 using Timer = System.Timers.Timer;
 
 namespace Unifiedban.Next.Terminal.Telegram;
@@ -51,7 +49,7 @@ internal static class Program
             .AddJsonFile("appsettings.json", false, false);
         CacheData.Configuration = builder.Build();
         _ = new Models.UBContext(CacheData.Configuration["Database"]);
-        
+
         Common.Utils.WriteLine("Registering instance");
         Utils.RegisterInstance();
         Common.Utils.WriteLine("***************************************");
