@@ -38,7 +38,7 @@ using Unifiedban.Next.Models.Telegram;
 
 namespace Unifiedban.Next.Terminal.Telegram;
 
-internal class GetUserPriviliges
+internal class TelegramManager
 {
     internal static TelegramBotClient? BotClient;
     internal static readonly CancellationTokenSource Cts = new();
@@ -48,8 +48,8 @@ internal class GetUserPriviliges
     private long _myId = 0;
     private long _testChatId = 0;
 
-    private Dictionary<long, List<Message>> _registrationInProgress = new();
-    private object _regInProgObject = new ();
+    private readonly Dictionary<long, List<Message>> _registrationInProgress = new();
+    private readonly object _regInProgObject = new ();
     
     public void Init()
     {
@@ -98,7 +98,7 @@ internal class GetUserPriviliges
             AllowedUpdates = { } // receive all update types
         };
 
-        _updateReceiver = new QueuedUpdateReceiver(BotClient, receiverOptions);
+        _updateReceiver = new QueuedUpdateReceiver(BotClient!, receiverOptions);
             
         try
         {

@@ -32,8 +32,8 @@ internal class ActionHandler
     {
         try
         {
-            GetUserPriviliges.BotClient?
-                .LeaveChatAsync(actionData.Chat.Id, GetUserPriviliges.Cts.Token);
+            TelegramManager.BotClient?
+                .LeaveChatAsync(actionData.Chat.Id, TelegramManager.Cts.Token);
         }
         catch (Exception ex)
         {
@@ -44,7 +44,7 @@ internal class ActionHandler
     {
         try
         {
-            _ = GetUserPriviliges.BotClient?.SendTextMessageAsync(
+            _ = TelegramManager.BotClient?.SendTextMessageAsync(
                 actionData.Chat.Id,
                 actionData.Text,
                 actionData.ParseMode,
@@ -52,7 +52,7 @@ internal class ActionHandler
                 disableNotification: actionData.DisableNotification,
                 replyToMessageId: actionData.ReferenceMessageId,
                 replyMarkup: actionData.ReplyMarkup,
-                cancellationToken: GetUserPriviliges.Cts.Token
+                cancellationToken: TelegramManager.Cts.Token
             ).Result;
 
             switch (actionData.PostSentAction)
@@ -79,8 +79,8 @@ internal class ActionHandler
         if (actionData.ReferenceMessageId is null) return;
         try
         {
-            GetUserPriviliges.BotClient?
-                .DeleteMessageAsync(actionData.Chat.Id, (int)actionData.ReferenceMessageId, GetUserPriviliges.Cts.Token);
+            TelegramManager.BotClient?
+                .DeleteMessageAsync(actionData.Chat.Id, (int)actionData.ReferenceMessageId, TelegramManager.Cts.Token);
         }
         catch (Exception ex)
         {
@@ -92,11 +92,11 @@ internal class ActionHandler
         if (actionData.ReferenceMessageId is null) return;
         try
         {
-            GetUserPriviliges.BotClient?
+            TelegramManager.BotClient?
                 .PinChatMessageAsync(actionData.Chat.Id,
                     (int)actionData.ReferenceMessageId,
                     actionData.DisableNotification,
-                    GetUserPriviliges.Cts.Token);
+                    TelegramManager.Cts.Token);
         }
         catch (Exception ex)
         {

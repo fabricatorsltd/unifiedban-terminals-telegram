@@ -34,7 +34,7 @@ internal static class Program
     private static bool _manualShutdown;
     private static readonly Timer Heartbeat = new();
 
-    private static readonly GetUserPriviliges _telegramManager = new();
+    private static readonly TelegramManager _telegramManager = new();
     private static readonly RabbitManager _rabbitManager = new();
     
     private static void Main(string[] args)
