@@ -48,7 +48,7 @@ internal static class Program
             .SetBasePath(Environment.CurrentDirectory)
             .AddJsonFile("appsettings.json", false, false);
         CacheData.Configuration = builder.Build();
-        _ = new Models.UBContext(CacheData.Configuration["Database"]);
+        _ = new UBContext(CacheData.Configuration["Database"]);
 
         Common.Utils.WriteLine("Registering instance");
         Utils.RegisterInstance();

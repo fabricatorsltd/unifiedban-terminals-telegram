@@ -44,7 +44,7 @@ internal class ActionHandler
     {
         try
         {
-            _ = TelegramManager.BotClient?.SendTextMessageAsync(
+            var sent = TelegramManager.BotClient?.SendTextMessageAsync(
                 actionData.Chat.Id,
                 actionData.Text,
                 actionData.ParseMode,
@@ -55,18 +55,29 @@ internal class ActionHandler
                 cancellationToken: TelegramManager.Cts.Token
             ).Result;
 
+            if (sent == null)
+            {
+                // TODO - log
+
+                return;
+            }
+
             switch (actionData.PostSentAction)
             {
                 case ActionData.PostSentActions.Pin:
-                    // Bot.Manager.BotClient.PinChatMessageAsync(msgToSend.Chat.Id, sent.MessageId);
+                    TelegramManager.BotClient?.PinChatMessageAsync(actionData.Chat.Id, sent.MessageId);
                     break;
                 case ActionData.PostSentActions.Destroy:
                     Task.Run(() =>
                     {
                         System.Threading.Thread.Sleep(1000 * actionData.AutoDestroyTimeInSeconds);
-                        // Bot.Manager.BotClient.DeleteMessageAsync(msgToSend.Chat.Id, sent.MessageId);
+                        TelegramManager.BotClient?.DeleteMessageAsync(actionData.Chat.Id, sent.MessageId);
                     });
                     break;
+                case ActionData.PostSentActions.None:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
             }
         }
         catch (Exception ex)

@@ -33,6 +33,7 @@ internal class MessageQueue
     private short MaxMessagePerMinute { get; set; }
     private System.Timers.Timer QueueTimer { get; set; }
     private bool _handlingInProgress;
+    private ActionHandler _actionHandler = new ();
     public Queue<ActionRequest> Queue { get; set; } = new();
 
     public MessageQueue(long telegramChatId, short maxMsgPerMinute)
@@ -88,10 +89,10 @@ internal class MessageQueue
         switch (request.Action)
         {
             case ActionRequest.Actions.LeaveChat:
-                new ActionHandler().LeaveChat(request.Message);
+                _actionHandler.LeaveChat(request.Message);
                 break;
             case ActionRequest.Actions.SendText:
-                new ActionHandler().SendMessage(request.Message);
+                _actionHandler.SendMessage(request.Message);
                 break;
             case ActionRequest.Actions.SendImage:
                 break;
@@ -102,7 +103,7 @@ internal class MessageQueue
             case ActionRequest.Actions.SendAudio:
                 break;
             case ActionRequest.Actions.DeleteMessage:
-                new ActionHandler().DeleteMessage(request.Message);
+                _actionHandler.DeleteMessage(request.Message);
                 break;
             case ActionRequest.Actions.EditMessage:
                 break;
@@ -127,7 +128,7 @@ internal class MessageQueue
             case ActionRequest.Actions.DeclineChatJoinRequest:
                 break;
             case ActionRequest.Actions.PinMessage:
-                new ActionHandler().PinMessage(request.Message);
+                _actionHandler.PinMessage(request.Message);
                 break;
             case ActionRequest.Actions.UnpinMessage:
                 break;
