@@ -1,4 +1,4 @@
-﻿/* unified/ban - Management and protection systems
+/* unified/ban - Management and protection systems
 
 © fabricators SRL, https://fabricators.ltd , https://unifiedban.solutions
 
@@ -285,11 +285,12 @@ internal class TelegramManager
             if (CacheData.BotPermissions.ContainsKey(update.Chat.Id))
                 CacheData.BotPermissions.Remove(update.Chat.Id);
 #if DEBUG
-            await BotClient!.SendTextMessageAsync(
-                update.Chat!,
-                $"Telegram told me I'm not a chat admin.",
-                cancellationToken: Cts.Token
-            );
+            if(update.NewChatMember is not ChatMemberLeft)
+                await BotClient!.SendTextMessageAsync(
+                    update.Chat!,
+                    $"Telegram told me I'm not a chat admin.",
+                    cancellationToken: Cts.Token
+                );
 #endif
         }
     }
@@ -511,6 +512,15 @@ internal class TelegramManager
         if (newChat.StatusCode == 200)
         {
             CacheData.Chats.Add(message.Chat.Id, newChat.Payload);
+            if (LoadChatPermissions(message.Chat.Id))
+            {
+                // TODO - Send welcome to IC message
+                if(string.IsNullOrEmpty(CacheData.Chats[message.Chat.Id].LastVersion))
+                    BotClient!.SendTextMessageAsync(message.Chat.Id, "Welcome to IC!").Wait();
+                else
+                    BotClient!.SendTextMessageAsync(message.Chat.Id, "Thank you for migrating to IC!").Wait();
+            }
+
             MessageQueueManager.AddGroupIfNotPresent(CacheData.Chats[message.Chat.Id]);
             HandleRegistrationMessages(message.Chat.Id);
             return;
@@ -533,6 +543,32 @@ internal class TelegramManager
     private void SendToControlChat(string message)
     {
         BotClient!.SendTextMessageAsync(CacheData.ControlChatId,message);
+    }
+    private bool LoadChatPermissions(long chatId)
+    {
+        Common.Utils.WriteLine("Getting permissions from chat(s)");
+            
+        var chatMember = BotClient!.GetChatMemberAsync(chatId, _myId).Result;
+        if (chatMember is ChatMemberAdministrator chatMemberAdministrator)
+        {
+            CacheData.BotPermissions[chatId] = new UserPrivileges
+            {
+                CanManageChat = chatMemberAdministrator.CanManageChat,
+                CanPostMessages = chatMemberAdministrator.CanPostMessages ?? false,
+                CanEditMessages = chatMemberAdministrator.CanEditMessages ?? false,
+                CanDeleteMessages = chatMemberAdministrator.CanDeleteMessages,
+                CanManageVoiceChats = chatMemberAdministrator.CanManageVoiceChats,
+                CanRestrictMembers = chatMemberAdministrator.CanRestrictMembers,
+                CanPromoteMembers = chatMemberAdministrator.CanPromoteMembers,
+                CanChangeInfo = chatMemberAdministrator.CanChangeInfo,
+                CanInviteUsers = chatMemberAdministrator.CanInviteUsers,
+                CanPinMessages = chatMemberAdministrator.CanPinMessages ?? false
+            };
+            return true;
+        }
+        
+        BotClient!.SendTextMessageAsync(chatId, "Bot must be set as Administrator to work properly").Wait();
+        return false;
     }
     private void LoadChatPermissions()
     {
