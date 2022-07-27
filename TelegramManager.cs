@@ -61,18 +61,6 @@ internal class TelegramManager
         BotClient = new TelegramBotClient(CacheData.Configuration?["Telegram:BotToken"] ?? string.Empty);
         _testChatId = long.Parse(CacheData.Configuration?["Telegram:TestChatId"] ?? "0");
 
-        CacheData.Chats[-1001324395059] = new TGChat
-        {
-            ChatId = "test",
-            Status = Enums.ChatStates.Active,
-            TelegramChatId = -1001324395059,
-            Title = "UB Next test",
-            CommandPrefix = "/",
-            ReportChatId = -1001324395059,
-            EnabledCommandsType = Enums.EnabledCommandsTypes.All,
-            DisabledCommands = Array.Empty<string>()
-        };
-
         MessageQueueManager.Initialize();
         MessageQueueManager.AddGroupIfNotPresent(CacheData.Chats[-1001324395059]);
     }
@@ -148,26 +136,27 @@ internal class TelegramManager
                 return;
             }
 
-            if (!_registrationInProgress.ContainsKey(message.Chat.Id))
-            {
-                _registrationInProgress.Add(message.Chat.Id, new List<Message>());
-                RegisterNewChat(message);
-            }
-
             lock (_regInProgObject)
             {
+                if (!_registrationInProgress.ContainsKey(message.Chat.Id))
+                {
+                    _registrationInProgress.Add(message.Chat.Id, new List<Message>());
+                    RegisterNewChat(message);
+                }
+                
                 _registrationInProgress[message.Chat.Id].Add(message);
             }
 
             return;
-        } 
-        else if (_registrationInProgress.ContainsKey(message.Chat.Id))
+        }
+
+        lock (_regInProgObject)
         {
-            lock (_regInProgObject)
+            if (_registrationInProgress.ContainsKey(message.Chat.Id))
             {
                 _registrationInProgress[message.Chat.Id].Add(message);
+                return;
             }
-            return;
         }
 
         switch (message.Type)
