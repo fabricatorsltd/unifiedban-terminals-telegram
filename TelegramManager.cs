@@ -1,4 +1,4 @@
-/* unified/ban - Management and protection systems
+﻿/* unified/ban - Management and protection systems
 
 © fabricators SRL, https://fabricators.ltd , https://unifiedban.solutions
 
@@ -59,19 +59,6 @@ internal class TelegramManager
 
         CacheData.ControlChatId = long.Parse(CacheData.Configuration?["Telegram:ControlChatId"] ?? "0");
         BotClient = new TelegramBotClient(CacheData.Configuration?["Telegram:BotToken"] ?? string.Empty);
-        _testChatId = long.Parse(CacheData.Configuration?["Telegram:TestChatId"] ?? "0");
-
-        CacheData.Chats[-1001324395059] = new TGChat
-        {
-            ChatId = "test",
-            Status = Enums.ChatStates.Active,
-            TelegramChatId = -1001324395059,
-            Title = "UB Next test",
-            CommandPrefix = "/",
-            ReportChatId = -1001324395059,
-            EnabledCommandsType = Enums.EnabledCommandsTypes.All,
-            DisabledCommands = Array.Empty<string>()
-        };
 
         MessageQueueManager.Initialize();
         MessageQueueManager.AddGroupIfNotPresent(CacheData.Chats[-1001324395059]);
@@ -151,6 +138,7 @@ internal class TelegramManager
             if (!_registrationInProgress.ContainsKey(message.Chat.Id))
             {
                 _registrationInProgress.Add(message.Chat.Id, new List<Message>());
+                Console.WriteLine($"Received message for not known chat {message.Chat.Id} (going to register)");
                 RegisterNewChat(message);
             }
 
@@ -395,9 +383,11 @@ internal class TelegramManager
     {
         if (!CacheData.Chats.ContainsKey(message.Chat.Id)) return;
         // TODO - update chat details on database
+        Console.WriteLine($"Received chat update for {message.Chat.Id}");
     }
     private async void HandleChatCreation(Message message)
     {
+        Console.WriteLine($"Received chat update to create {message.Chat.Id}");
         if (!CacheData.Chats.ContainsKey(message.Chat.Id))
         {
             RegisterNewChat(message);
@@ -487,6 +477,7 @@ internal class TelegramManager
     }
     private async void RegisterNewChat(Message message)
     {
+        Console.WriteLine($"Registering new chat {message.Chat.Id}");
         ChatMember? creator;
         try
         {
