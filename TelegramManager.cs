@@ -135,27 +135,28 @@ internal class TelegramManager
                 return;
             }
 
-            if (!_registrationInProgress.ContainsKey(message.Chat.Id))
-            {
-                _registrationInProgress.Add(message.Chat.Id, new List<Message>());
-                Console.WriteLine($"Received message for not known chat {message.Chat.Id} (going to register)");
-                RegisterNewChat(message);
-            }
-
             lock (_regInProgObject)
             {
+                if (!_registrationInProgress.ContainsKey(message.Chat.Id))
+                {
+                    _registrationInProgress.Add(message.Chat.Id, new List<Message>());
+                    Console.WriteLine($"Received message for not known chat {message.Chat.Id} (going to register)");
+                    RegisterNewChat(message);
+                }
+                
                 _registrationInProgress[message.Chat.Id].Add(message);
             }
 
             return;
-        } 
-        else if (_registrationInProgress.ContainsKey(message.Chat.Id))
+        }
+
+        lock (_regInProgObject)
         {
-            lock (_regInProgObject)
+            if (_registrationInProgress.ContainsKey(message.Chat.Id))
             {
                 _registrationInProgress[message.Chat.Id].Add(message);
+                return;
             }
-            return;
         }
 
         switch (message.Type)
