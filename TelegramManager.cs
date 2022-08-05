@@ -211,6 +211,7 @@ internal class TelegramManager
     private async void HandleUpdateMember(ChatMemberUpdated update)
     {
         if (!CacheData.Chats.ContainsKey(update.Chat.Id)) return;
+        var wasAdmin = CacheData.BotPermissions.ContainsKey(update.Chat.Id);
         if (update.NewChatMember is ChatMemberAdministrator chatMemberAdministrator)
         {
             if (update.NewChatMember.User.Id == _myId)
@@ -228,6 +229,11 @@ internal class TelegramManager
                     CanInviteUsers = chatMemberAdministrator.CanInviteUsers,
                     CanPinMessages = chatMemberAdministrator.CanPinMessages ?? false
                 };
+
+                if (!wasAdmin)
+                {
+                    BotClient!.SendTextMessageAsync(update.Chat.Id, "Welcome to IC!").Wait();
+                }
 #if DEBUG
                 await BotClient!.SendTextMessageAsync(
                     update.Chat!,
