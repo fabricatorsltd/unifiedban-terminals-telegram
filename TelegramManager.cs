@@ -46,7 +46,6 @@ internal class TelegramManager
 
     private int _totalMessages = 0;
     private long _myId = 0;
-    private long _testChatId = 0;
 
     private readonly Dictionary<long, List<Message>> _registrationInProgress = new();
     private readonly object _regInProgObject = new ();
@@ -61,7 +60,6 @@ internal class TelegramManager
         BotClient = new TelegramBotClient(CacheData.Configuration?["Telegram:BotToken"] ?? string.Empty);
 
         MessageQueueManager.Initialize();
-        MessageQueueManager.AddGroupIfNotPresent(CacheData.Chats[-1001324395059]);
     }
     public async void Start()
     {
@@ -70,8 +68,6 @@ internal class TelegramManager
             var me = BotClient!.GetMeAsync().Result;
             _myId = me.Id;
             Common.Utils.WriteLine($"Start listening for @{me.Username}");
-
-            LoadChatPermissions();
         }
         catch (Exception ex)
         {
@@ -478,6 +474,12 @@ internal class TelegramManager
     }
     private async void RegisterNewChat(Message message)
     {
+        if (message.MigrateFromChatId != null)
+        {
+            MigrateChat(message);
+            return;
+        }
+        
         Console.WriteLine($"Registering new chat {message.Chat.Id}");
         ChatMember? creator;
         try
@@ -500,7 +502,7 @@ internal class TelegramManager
         var logic = new TGChatLogic();
         var newChat = logic.Register(message.Chat.Id, message.Chat.Title ?? "", 
             long.Parse(CacheData.Configuration?["Telegram:ControlChatId"] ?? "0"), 
-            message.From?.LanguageCode ?? "en", creator.User.Id);
+            message.From?.LanguageCode ?? "en", creator.User.Id, "4.0");
         if (newChat.StatusCode == 200)
         {
             CacheData.Chats.Add(message.Chat.Id, newChat.Payload);
@@ -519,6 +521,43 @@ internal class TelegramManager
         }
         Common.Utils.WriteLine($"Can't register new chat {message.Chat.Id} with error: {newChat.StatusDescription}", 3);
         SendToControlChat($"Can't register new chat {message.Chat.Id} with error: {newChat.StatusDescription}");
+    }
+    private void MigrateChat(Message message)
+    {
+        if (message.MigrateFromChatId == null)
+        {
+            // TODO - log error
+            return;
+        }
+        
+        // get chat from database
+        var oldChat = CacheData.Chats[message.MigrateFromChatId!.Value];
+        oldChat.TelegramChatId = message.Chat.Id;
+        
+        // update record with new id
+        var logic = new TGChatLogic();
+        var newChat = logic.Update(oldChat);
+        if (newChat.StatusCode != 200)
+        {
+            // TODO - log
+            return;
+        }
+        
+        CacheData.Chats.Add(message.Chat.Id, newChat.Payload);
+        LoadChatPermissions(message.Chat.Id);
+
+        if (!CacheData.BotPermissions.ContainsKey(message.MigrateFromChatId!.Value) &&
+            CacheData.BotPermissions[message.Chat.Id].CanManageChat)
+        {
+            BotClient!.SendTextMessageAsync(message.Chat.Id, "Welcome to IC!").Wait();
+        }
+        else
+        {
+            CacheData.BotPermissions.Remove(message.MigrateFromChatId!.Value);
+        }
+
+        CacheData.Chats.Remove(message.MigrateFromChatId!.Value);
+        HandleRegistrationMessages(message.Chat.Id);
     }
 
     private void HandleRegistrationMessages(long chatId)
@@ -561,50 +600,6 @@ internal class TelegramManager
         
         BotClient!.SendTextMessageAsync(chatId, "Bot must be set as Administrator to work properly").Wait();
         return false;
-    }
-    private void LoadChatPermissions()
-    {
-        Common.Utils.WriteLine("Getting permissions from chat(s)");
-            
-        var chatMember = BotClient!.GetChatMemberAsync(_testChatId, _myId).Result;
-        switch (chatMember.Status)
-        {
-            case ChatMemberStatus.Member:
-                Common.Utils.WriteLine("Chat member is type of Member");
-                break;
-            case ChatMemberStatus.Restricted:
-                Common.Utils.WriteLine("Chat member is type of Restricted");
-                break;
-            case ChatMemberStatus.Creator:
-                Common.Utils.WriteLine("Chat member is type of Restricted");
-                break;
-            case ChatMemberStatus.Administrator:
-                Common.Utils.WriteLine("Chat member is type of Administrator");
-                break;
-            case ChatMemberStatus.Left:
-                Common.Utils.WriteLine("Chat member is type of Left");
-                break;
-            case ChatMemberStatus.Kicked:
-                Common.Utils.WriteLine("Chat member is type of Kicked");
-                break;
-            default:
-                throw new ArgumentOutOfRangeException();
-        }
-
-        if (chatMember is ChatMemberAdministrator chatMemberAdministrator)
-            CacheData.BotPermissions[_testChatId] = new UserPrivileges
-            {
-                CanManageChat = chatMemberAdministrator.CanManageChat,
-                CanPostMessages = chatMemberAdministrator.CanPostMessages ?? false,
-                CanEditMessages = chatMemberAdministrator.CanEditMessages ?? false,
-                CanDeleteMessages = chatMemberAdministrator.CanDeleteMessages,
-                CanManageVoiceChats = chatMemberAdministrator.CanManageVoiceChats,
-                CanRestrictMembers = chatMemberAdministrator.CanRestrictMembers,
-                CanPromoteMembers = chatMemberAdministrator.CanPromoteMembers,
-                CanChangeInfo = chatMemberAdministrator.CanChangeInfo,
-                CanInviteUsers = chatMemberAdministrator.CanInviteUsers,
-                CanPinMessages = chatMemberAdministrator.CanPinMessages ?? false
-            };
     }
     #endregion
 }
