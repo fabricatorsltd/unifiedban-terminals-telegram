@@ -42,6 +42,7 @@ internal class TelegramManager
 {
     internal static TelegramBotClient? BotClient;
     internal static readonly CancellationTokenSource Cts = new();
+    internal static readonly string LastVersion = "4.0";
     private QueuedUpdateReceiver? _updateReceiver;
 
     private int _totalMessages = 0;
@@ -88,6 +89,7 @@ internal class TelegramManager
             await foreach (var update in _updateReceiver.WithCancellation(Cts.Token))
             {
                 _totalMessages++;
+                
                 
                 if (update.Message is not null)
                     HandleMessageAsync(update.Message);
@@ -136,7 +138,7 @@ internal class TelegramManager
                 if (!_registrationInProgress.ContainsKey(message.Chat.Id))
                 {
                     _registrationInProgress.Add(message.Chat.Id, new List<Message>());
-                    Console.WriteLine($"Received message for not known chat {message.Chat.Id} (going to register)");
+                    Common.Utils.WriteLine($"Received message for not known chat {message.Chat.Id} (going to register)", 2);
                     RegisterNewChat(message);
                 }
                 
@@ -153,6 +155,14 @@ internal class TelegramManager
                 _registrationInProgress[message.Chat.Id].Add(message);
                 return;
             }
+        }
+
+        if (CacheData.Chats[message.Chat.Id].Status != Enums.ChatStates.Active)
+        {
+#if DEBUG
+            Common.Utils.WriteLine($"Received message from chat with status {CacheData.Chats[message.Chat.Id].Status.ToString()}", 0);
+#endif
+            return;
         }
 
         switch (message.Type)
@@ -204,17 +214,16 @@ internal class TelegramManager
                 return;
             case MessageType.Unknown:
             default:
-                Common.Utils.WriteLine($"Received message of Type {message.Type.ToString()} that has no handler");
+                Common.Utils.WriteLine($"Received message of Type {message.Type.ToString()} that has no handler", 2);
                 return;
         }
     }
     private async void HandleUpdateMember(ChatMemberUpdated update)
     {
         if (!CacheData.Chats.ContainsKey(update.Chat.Id)) return;
-        var wasAdmin = CacheData.BotPermissions.ContainsKey(update.Chat.Id);
-        if (update.NewChatMember is ChatMemberAdministrator chatMemberAdministrator)
+        if (update.NewChatMember.User.Id == _myId)
         {
-            if (update.NewChatMember.User.Id == _myId)
+            if (update.NewChatMember is ChatMemberAdministrator chatMemberAdministrator)
             {
                 CacheData.BotPermissions[update.Chat.Id] = new UserPrivileges
                 {
@@ -229,11 +238,6 @@ internal class TelegramManager
                     CanInviteUsers = chatMemberAdministrator.CanInviteUsers,
                     CanPinMessages = chatMemberAdministrator.CanPinMessages ?? false
                 };
-
-                if (!wasAdmin)
-                {
-                    BotClient!.SendTextMessageAsync(update.Chat.Id, "Welcome to IC!").Wait();
-                }
 #if DEBUG
                 await BotClient!.SendTextMessageAsync(
                     update.Chat!,
@@ -244,9 +248,25 @@ internal class TelegramManager
             }
             else
             {
-                if (!CacheData.UserPermissions.ContainsKey(update.Chat.Id))
-                    CacheData.UserPermissions[update.Chat.Id] = new Dictionary<long, UserPrivileges>();
-                    
+                if (update.NewChatMember is not ChatMemberLeft)
+                {
+#if DEBUG
+                    await BotClient!.SendTextMessageAsync(
+                        update.Chat!,
+                        $"Telegram told me I'm not a chat admin.",
+                        cancellationToken: Cts.Token
+                    );
+#endif
+                }
+            }
+        }
+        else
+        {
+            if(!CacheData.UserPermissions.ContainsKey(update.Chat.Id))
+                CacheData.UserPermissions[update.Chat.Id] = new Dictionary<long, UserPrivileges>();
+            
+            if (update.NewChatMember is ChatMemberAdministrator chatMemberAdministrator)
+            {
                 CacheData.UserPermissions[update.Chat.Id][update.NewChatMember.User.Id] = new UserPrivileges
                 {
                     ChatId = update.Chat.Id,
@@ -270,25 +290,14 @@ internal class TelegramManager
                 );
 #endif
             }
-        }
-        else if (update.NewChatMember.User.Id == _myId)
-        {
-            if (CacheData.BotPermissions.ContainsKey(update.Chat.Id))
-                CacheData.BotPermissions.Remove(update.Chat.Id);
-#if DEBUG
-            if(update.NewChatMember is not ChatMemberLeft)
-                await BotClient!.SendTextMessageAsync(
-                    update.Chat!,
-                    $"Telegram told me I'm not a chat admin.",
-                    cancellationToken: Cts.Token
-                );
-#endif
+            else if (CacheData.UserPermissions[update.Chat.Id].ContainsKey(update.NewChatMember.User.Id))
+                CacheData.UserPermissions[update.Chat.Id].Remove(update.NewChatMember.User.Id);
         }
     }
     private async void HandleCallbackQuery(CallbackQuery callbackQuery)
     {
         _totalMessages++;
-        Console.WriteLine("New callbackQuery: " + callbackQuery.Message?.Text);
+        Common.Utils.WriteLine("New callbackQuery: " + callbackQuery.Message?.Text, 0);
 #if DEBUG
         await BotClient!.SendTextMessageAsync(
             callbackQuery.Message?.Chat!,
@@ -313,12 +322,12 @@ internal class TelegramManager
         if (!CacheData.Chats.ContainsKey(message.Chat.Id)) return;
         if (message.From is null)
         {
-            Common.Utils.WriteLine("Received message with null sender (message.From)");
+            Common.Utils.WriteLine("Received message with null sender (message.From)", 2);
             return;
         }
         if(message.Text is null)
         {
-            Common.Utils.WriteLine("Received message with null text (message.Text)");
+            Common.Utils.WriteLine("Received message with null text (message.Text)", 2);
             return;
         }
         
@@ -361,6 +370,26 @@ internal class TelegramManager
 
         foreach (var newChatMember in message.NewChatMembers!)
         {
+            if (newChatMember.Id == _myId)
+            {
+                if (CacheData.Chats[message.Chat.Id].Status == Enums.ChatStates.Disabled)
+                {
+                    var logic = new TGChatLogic();
+                    CacheData.Chats[message.Chat.Id].Status = Enums.ChatStates.Active;
+                    if (logic.Update(CacheData.Chats[message.Chat.Id]).StatusCode != 200)
+                    {
+                        // TODO - send to control chat
+                        Common.Utils.WriteLine($"Error enabling chat {message.Chat.Id} on HandleUpdateMember", 3);
+                    }
+                }
+                
+                if (LoadChatPermissions(message.Chat.Id))
+                {
+                    BotClient!.SendTextMessageAsync(message.Chat.Id, "Welcome to IC!").Wait();
+                }
+                continue;
+            }
+            
             var queueMsg = new QueueMessage<TGChat, UserPrivileges, UserPrivileges, Message>
             {
                 UBChat = CacheData.Chats[message.Chat.Id],
@@ -381,16 +410,36 @@ internal class TelegramManager
     {
         if (!CacheData.Chats.ContainsKey(message.Chat.Id)) return;
         // TODO - if group activated delete left system message, remove it
+        if (message.LeftChatMember!.Id == _myId)
+        {
+            if (CacheData.BotPermissions.ContainsKey(message.Chat.Id))
+                CacheData.BotPermissions.Remove(message.Chat.Id);
+
+            var logic = new TGChatLogic();
+            CacheData.Chats[message.Chat.Id].Status = Enums.ChatStates.Disabled;
+            if (logic.Update(CacheData.Chats[message.Chat.Id]).StatusCode != 200)
+            {
+                // TODO - send to control chat
+                Common.Utils.WriteLine($"Error disabling chat {message.Chat.Id} on HandleUpdateMember", 3);
+            }
+        }
+        else
+        {
+            if (!CacheData.UserPermissions.ContainsKey(message.Chat.Id)) return;
+            
+            if (CacheData.UserPermissions[message.Chat.Id].ContainsKey(message.LeftChatMember!.Id))
+                CacheData.UserPermissions[message.Chat.Id].Remove(message.LeftChatMember!.Id);
+        }
     }
     private async void HandleChatDetailUpdate(Message message)
     {
         if (!CacheData.Chats.ContainsKey(message.Chat.Id)) return;
         // TODO - update chat details on database
-        Console.WriteLine($"Received chat update for {message.Chat.Id}");
+        Common.Utils.WriteLine($"Received chat update for {message.Chat.Id}", -1);
     }
     private async void HandleChatCreation(Message message)
     {
-        Console.WriteLine($"Received chat update to create {message.Chat.Id}");
+        Common.Utils.WriteLine($"Received chat update to create {message.Chat.Id}");
         if (!CacheData.Chats.ContainsKey(message.Chat.Id))
         {
             RegisterNewChat(message);
@@ -486,7 +535,7 @@ internal class TelegramManager
             return;
         }
         
-        Console.WriteLine($"Registering new chat {message.Chat.Id}");
+        Common.Utils.WriteLine($"Registering new chat {message.Chat.Id}");
         ChatMember? creator;
         try
         {
@@ -508,14 +557,14 @@ internal class TelegramManager
         var logic = new TGChatLogic();
         var newChat = logic.Register(message.Chat.Id, message.Chat.Title ?? "", 
             long.Parse(CacheData.Configuration?["Telegram:ControlChatId"] ?? "0"), 
-            message.From?.LanguageCode ?? "en", creator.User.Id, "4.0");
+            message.From?.LanguageCode ?? "en", creator.User.Id, LastVersion);
         if (newChat.StatusCode == 200)
         {
             CacheData.Chats.Add(message.Chat.Id, newChat.Payload);
             if (LoadChatPermissions(message.Chat.Id))
             {
                 // TODO - Send welcome to IC message
-                if(string.IsNullOrEmpty(CacheData.Chats[message.Chat.Id].LastVersion))
+                if(CacheData.Chats[message.Chat.Id].LastVersion != LastVersion)
                     BotClient!.SendTextMessageAsync(message.Chat.Id, "Welcome to IC!").Wait();
                 else
                     BotClient!.SendTextMessageAsync(message.Chat.Id, "Thank you for migrating to IC!").Wait();
