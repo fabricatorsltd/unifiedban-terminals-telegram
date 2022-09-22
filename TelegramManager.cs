@@ -35,7 +35,6 @@ using Unifiedban.Next.Common;
 using Unifiedban.Next.Common.Telegram;
 using Unifiedban.Next.Models.Telegram;
 
-
 namespace Unifiedban.Next.Terminal.Telegram;
 
 internal class TelegramManager
@@ -48,6 +47,7 @@ internal class TelegramManager
     private int _totalMessages = 0;
     private long _myId = 0;
 
+    private readonly TGChatLogic _tgChatLogic = new ();
     private readonly Dictionary<long, List<Message>> _registrationInProgress = new();
     private readonly object _regInProgObject = new ();
     
@@ -374,9 +374,8 @@ internal class TelegramManager
             {
                 if (CacheData.Chats[message.Chat.Id].Status == Enums.ChatStates.Disabled)
                 {
-                    var logic = new TGChatLogic();
                     CacheData.Chats[message.Chat.Id].Status = Enums.ChatStates.Active;
-                    if (logic.Update(CacheData.Chats[message.Chat.Id]).StatusCode != 200)
+                    if (_tgChatLogic.Update(CacheData.Chats[message.Chat.Id]).StatusCode != 200)
                     {
                         // TODO - send to control chat
                         Common.Utils.WriteLine($"Error enabling chat {message.Chat.Id} on HandleUpdateMember", 3);
@@ -415,9 +414,8 @@ internal class TelegramManager
             if (CacheData.BotPermissions.ContainsKey(message.Chat.Id))
                 CacheData.BotPermissions.Remove(message.Chat.Id);
 
-            var logic = new TGChatLogic();
             CacheData.Chats[message.Chat.Id].Status = Enums.ChatStates.Disabled;
-            if (logic.Update(CacheData.Chats[message.Chat.Id]).StatusCode != 200)
+            if (_tgChatLogic.Update(CacheData.Chats[message.Chat.Id]).StatusCode != 200)
             {
                 // TODO - send to control chat
                 Common.Utils.WriteLine($"Error disabling chat {message.Chat.Id} on HandleUpdateMember", 3);
@@ -554,10 +552,9 @@ internal class TelegramManager
             return;
         }
         
-        var logic = new TGChatLogic();
-        var newChat = logic.Register(message.Chat.Id, message.Chat.Title ?? "", 
-            long.Parse(CacheData.Configuration?["Telegram:ControlChatId"] ?? "0"), 
-            message.From?.LanguageCode ?? "en", creator.User.Id, LastVersion);
+        var newChat = _tgChatLogic.Register(message.Chat.Id, message.Chat.Title ?? "", 
+            CacheData.ControlChatId, message.From?.LanguageCode ?? "en", 
+            creator.User.Id, LastVersion);
         if (newChat.StatusCode == 200)
         {
             CacheData.Chats.Add(message.Chat.Id, newChat.Payload);
@@ -590,8 +587,7 @@ internal class TelegramManager
         oldChat.TelegramChatId = message.Chat.Id;
         
         // update record with new id
-        var logic = new TGChatLogic();
-        var newChat = logic.Update(oldChat);
+        var newChat = _tgChatLogic.Update(oldChat);
         if (newChat.StatusCode != 200)
         {
             // TODO - log
