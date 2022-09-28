@@ -1,4 +1,4 @@
-﻿/* unified/ban - Management and protection systems
+/* unified/ban - Management and protection systems
 
 © fabricators SRL, https://fabricators.ltd , https://unifiedban.solutions
 
@@ -124,7 +124,8 @@ internal class TelegramManager
     #region " Handlers "
     private void HandleMessageAsync(Message message)
     {
-        if (!CacheData.Chats.ContainsKey(message.Chat.Id))
+        var isGroup = message.Chat.Type is ChatType.Group or ChatType.Supergroup;
+        if (isGroup && !CacheData.Chats.ContainsKey(message.Chat.Id))
         {
             if (bool.Parse(CacheData.Configuration?["Telegram:V3ChatMigration"] ?? "false") &&
                 CacheData.V3Chats.Contains(message.Chat.Id))
@@ -157,7 +158,7 @@ internal class TelegramManager
             }
         }
 
-        if (CacheData.Chats[message.Chat.Id].Status != Enums.ChatStates.Active)
+        if (isGroup && CacheData.Chats[message.Chat.Id].Status != Enums.ChatStates.Active)
         {
 #if DEBUG
             Common.Utils.WriteLine($"Received message from chat with status {CacheData.Chats[message.Chat.Id].Status.ToString()}", 0);
@@ -561,7 +562,7 @@ internal class TelegramManager
             if (LoadChatPermissions(message.Chat.Id))
             {
                 // TODO - Send welcome to IC message
-                if(CacheData.Chats[message.Chat.Id].LastVersion != LastVersion)
+                if(CacheData.Chats[message.Chat.Id].LastVersion == LastVersion)
                     BotClient!.SendTextMessageAsync(message.Chat.Id, "Welcome to IC!").Wait();
                 else
                     BotClient!.SendTextMessageAsync(message.Chat.Id, "Thank you for migrating to IC!").Wait();
