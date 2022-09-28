@@ -1,4 +1,4 @@
-/* unified/ban - Management and protection systems
+﻿/* unified/ban - Management and protection systems
 
 © fabricators SRL, https://fabricators.ltd , https://unifiedban.solutions
 
@@ -27,7 +27,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Telegram.Bot;
-using Telegram.Bot.Extensions.Polling;
+using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Unifiedban.Next.BusinessLogic.Telegram;
@@ -81,8 +81,13 @@ internal class TelegramManager
         {
             AllowedUpdates = { } // receive all update types
         };
+        
+        BotClient!.StartReceiving(
+            updateHandler: UpdateHandler,
+            pollingErrorHandler: PollingErrorHandler,
+            receiverOptions, Cts.Token);
 
-        _updateReceiver = new QueuedUpdateReceiver(BotClient!, receiverOptions);
+        /*_updateReceiver = new QueuedUpdateReceiver(BotClient!, receiverOptions);
             
         try
         {
@@ -92,9 +97,9 @@ internal class TelegramManager
                 
                 
                 if (update.Message is not null)
-                    HandleMessageAsync(update.Message);
+                    HandleMessage(update.Message);
                 if(update.EditedMessage is not null)
-                    HandleMessageAsync(update.EditedMessage);
+                    HandleMessage(update.EditedMessage);
                 if (update.MyChatMember is not null)
                     HandleUpdateMember(update.MyChatMember);
                 if(update.ChatMember is not null)
@@ -115,14 +120,42 @@ internal class TelegramManager
             Common.Utils.WriteLine($"_updateReceiver Exception: {ex.Message}", 3);
             Common.Utils.WriteLine($"_updateReceiver Exception: {ex.InnerException?.Message}", 3);
         }
+        */
     }
+
+    private Task UpdateHandler(ITelegramBotClient client, Update update, CancellationToken cts)
+    {
+        _totalMessages++;
+        
+        if (update.Message is not null)
+            HandleMessage(update.Message);
+        if(update.EditedMessage is not null)
+            HandleMessage(update.EditedMessage);
+        if (update.MyChatMember is not null)
+            HandleUpdateMember(update.MyChatMember);
+        if(update.ChatMember is not null)
+            HandleUpdateMember(update.ChatMember);
+        if (update.CallbackQuery is not null)
+            HandleCallbackQuery(update.CallbackQuery);
+        if(update.ChatJoinRequest is not null)
+            HandleJoinRequestAsync(update.ChatJoinRequest);
+        
+        return Task.CompletedTask;
+    }
+
+    private Task PollingErrorHandler(ITelegramBotClient client, Exception ex, CancellationToken cts)
+    {
+        Common.Utils.WriteLine($"Polling ERROR: {ex.Message}", 4);
+        return Task.CompletedTask;
+    }
+
     public void Stop()
     {
         Cts.Cancel();
     }
     
     #region " Handlers "
-    private void HandleMessageAsync(Message message)
+    private void HandleMessage(Message message)
     {
         var isGroup = message.Chat.Type is ChatType.Group or ChatType.Supergroup;
         if (isGroup && !CacheData.Chats.ContainsKey(message.Chat.Id))
@@ -208,10 +241,10 @@ internal class TelegramManager
             case MessageType.Dice:
             case MessageType.MessageAutoDeleteTimerChanged:
             case MessageType.ProximityAlertTriggered:
-            case MessageType.VoiceChatScheduled:
-            case MessageType.VoiceChatStarted:
-            case MessageType.VoiceChatEnded:
-            case MessageType.VoiceChatParticipantsInvited:
+            case MessageType.VideoChatScheduled:
+            case MessageType.VideoChatStarted:
+            case MessageType.VideoChatEnded:
+            case MessageType.VideoChatParticipantsInvited:
                 return;
             case MessageType.Unknown:
             default:
@@ -524,7 +557,7 @@ internal class TelegramManager
     }
     private void MigrateFromV3(Message message)
     {
-        HandleMessageAsync(message);
+        HandleMessage(message);
     }
     private async void RegisterNewChat(Message message)
     {
@@ -621,10 +654,11 @@ internal class TelegramManager
             _registrationInProgress.Remove(chatId);
         }
         foreach (var message in toHandle)
-            HandleMessageAsync(message);
+            HandleMessage(message);
     }
     private void SendToControlChat(string message)
     {
+        if (CacheData.ControlChatId == 0) return;
         BotClient!.SendTextMessageAsync(CacheData.ControlChatId,message);
     }
     private bool LoadChatPermissions(long chatId)

@@ -53,7 +53,7 @@ internal static class Program
         Common.Utils.WriteLine("Registering instance");
         Utils.RegisterInstance();
         Common.Utils.WriteLine("***************************************");
-        SetHeartbeat();
+        //SetHeartbeat();
         Common.Utils.WriteLine("***************************************");
         Utils.GetModulesQueues();
         Common.Utils.WriteLine("***************************************");
