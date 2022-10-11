@@ -53,6 +53,7 @@ internal class TelegramManager
     
     public void Init()
     {
+        UpdateConfigurations();
         Common.Utils.WriteLine("Initializing Telegram client");
 
         _totalMessages = 0;
@@ -86,41 +87,6 @@ internal class TelegramManager
             updateHandler: UpdateHandler,
             pollingErrorHandler: PollingErrorHandler,
             receiverOptions, Cts.Token);
-
-        /*_updateReceiver = new QueuedUpdateReceiver(BotClient!, receiverOptions);
-            
-        try
-        {
-            await foreach (var update in _updateReceiver.WithCancellation(Cts.Token))
-            {
-                _totalMessages++;
-                
-                
-                if (update.Message is not null)
-                    HandleMessage(update.Message);
-                if(update.EditedMessage is not null)
-                    HandleMessage(update.EditedMessage);
-                if (update.MyChatMember is not null)
-                    HandleUpdateMember(update.MyChatMember);
-                if(update.ChatMember is not null)
-                    HandleUpdateMember(update.ChatMember);
-                if (update.CallbackQuery is not null)
-                    HandleCallbackQuery(update.CallbackQuery);
-                if(update.ChatJoinRequest is not null)
-                    HandleJoinRequestAsync(update.ChatJoinRequest);
-            }
-        }
-        catch (OperationCanceledException exception)
-        {
-            Common.Utils.WriteLine($"_updateReceiver OperationCanceledException: {exception.Message} (Stopping?)", 2);
-            Common.Utils.WriteLine($"_updateReceiver OperationCanceledException: {exception.InnerException?.Message} (Stopping?)", 2);
-        }
-        catch (Exception ex)
-        {
-            Common.Utils.WriteLine($"_updateReceiver Exception: {ex.Message}", 3);
-            Common.Utils.WriteLine($"_updateReceiver Exception: {ex.InnerException?.Message}", 3);
-        }
-        */
     }
 
     private Task UpdateHandler(ITelegramBotClient client, Update update, CancellationToken cts)
@@ -152,6 +118,34 @@ internal class TelegramManager
     public void Stop()
     {
         Cts.Cancel();
+    }
+
+    private void UpdateConfigurations()
+    {
+        Common.Utils.WriteLine("Updating chats configuration");
+        var defaultConfigs = new BusinessLogic.ConfigurationParameterLogic().Get();
+        if (defaultConfigs.StatusCode != 200) throw new Exception("Error getting default configs!");
+
+        foreach (var configParam in defaultConfigs.Payload)
+        {
+            configParam.SetDefault();
+            
+            foreach (var chat in CacheData.Chats.Values)
+            {
+                var config = chat.Configuration.FirstOrDefault(x =>
+                    x.ConfigurationParameterId == configParam.ConfigurationParameterId);
+                if (config == null)
+                {
+                    chat.Configuration.Add(configParam);
+                    continue;
+                }
+
+                config.Category = configParam.Category;
+                config.Platforms = configParam.Platforms;
+                config.AcceptedValues = configParam.AcceptedValues;
+                config.DefaultValue = configParam.DefaultValue;
+            }
+        }
     }
     
     #region " Handlers "
@@ -236,6 +230,7 @@ internal class TelegramManager
             case MessageType.Invoice:
             case MessageType.SuccessfulPayment:
             case MessageType.WebsiteConnected:
+            case MessageType.WebAppData:
             case MessageType.MessagePinned:
             case MessageType.Poll:
             case MessageType.Dice:
@@ -396,7 +391,14 @@ internal class TelegramManager
     private async void HandleMemberJoin(Message message)
     {
         if (!CacheData.Chats.ContainsKey(message.Chat.Id)) return;
-        // TODO - if group activated delete join system message, remove it
+        
+        var conf = CacheData.Chats[message.Chat.Id]
+            .GetConfigParam("DeleteSystemMessages", "false");
+        if (conf.Value.Equals("true"))
+        {
+            await BotClient!.DeleteMessageAsync(message.Chat.Id, message.MessageId);
+        }
+        
         var botPrivileges = new UserPrivileges();
 
         if (CacheData.BotPermissions.ContainsKey(message.Chat.Id))
@@ -442,7 +444,14 @@ internal class TelegramManager
     private async void HandleMemberLeft(Message message)
     {
         if (!CacheData.Chats.ContainsKey(message.Chat.Id)) return;
-        // TODO - if group activated delete left system message, remove it
+        
+        var conf = CacheData.Chats[message.Chat.Id]
+            .GetConfigParam("DeleteSystemMessages", "false");
+        if (conf.Value.Equals("true"))
+        {
+            await BotClient!.DeleteMessageAsync(message.Chat.Id, message.MessageId);
+        }
+        
         if (message.LeftChatMember!.Id == _myId)
         {
             if (CacheData.BotPermissions.ContainsKey(message.Chat.Id))
@@ -493,67 +502,28 @@ internal class TelegramManager
             return CacheData.UserPermissions[chatId][(long)userId];
         }
 
-        UserPrivileges userPrivileges;
-        var chatMember = await BotClient!.GetChatMemberAsync(chatId, (long)userId);
-        switch (chatMember)
+        if (CacheData.UserPermissions[chatId].ContainsKey(0))
         {
-            case ChatMemberAdministrator chatMemberAdministrator:
-                userPrivileges = new UserPrivileges
-                {
-                    CanManageChat = chatMemberAdministrator.CanManageChat,
-                    CanPostMessages = chatMemberAdministrator.CanPostMessages ?? false,
-                    CanEditMessages = chatMemberAdministrator.CanEditMessages ?? false,
-                    CanDeleteMessages = chatMemberAdministrator.CanDeleteMessages,
-                    CanManageVoiceChats = chatMemberAdministrator.CanManageVoiceChats,
-                    CanRestrictMembers = chatMemberAdministrator.CanRestrictMembers,
-                    CanPromoteMembers = chatMemberAdministrator.CanPromoteMembers,
-                    CanChangeInfo = chatMemberAdministrator.CanChangeInfo,
-                    CanInviteUsers = chatMemberAdministrator.CanInviteUsers,
-                    CanPinMessages = chatMemberAdministrator.CanPinMessages ?? false
-                };
-                break;
-            case ChatMemberRestricted chatMemberRestricted:
-                userPrivileges = new UserPrivileges
-                {
-                    CanManageChat = false,
-                    CanPostMessages = chatMemberRestricted.CanSendMessages,
-                    CanEditMessages = false,
-                    CanDeleteMessages = false,
-                    CanManageVoiceChats = false,
-                    CanRestrictMembers = false,
-                    CanPromoteMembers = false,
-                    CanChangeInfo = chatMemberRestricted.CanChangeInfo,
-                    CanInviteUsers = chatMemberRestricted.CanInviteUsers,
-                    CanPinMessages = chatMemberRestricted.CanPinMessages
-                };
-                break;
-            default:
-            {
-                if (CacheData.UserPermissions[chatId].ContainsKey(0))
-                    return CacheData.UserPermissions[chatId][0];
-                
-                // TODO - reload permissions time by time. No notification is sent by Telegram
-                var chat = await BotClient!.GetChatAsync(chatId);
-                CacheData.UserPermissions[chatId][0] = new UserPrivileges
-                {
-                    CanManageChat = false,
-                    CanPostMessages = chat.Permissions?.CanSendMessages ?? false,
-                    CanEditMessages = false,
-                    CanDeleteMessages = false,
-                    CanManageVoiceChats = false,
-                    CanRestrictMembers = false,
-                    CanPromoteMembers = false,
-                    CanChangeInfo = chat.Permissions?.CanChangeInfo ?? false,
-                    CanInviteUsers = chat.Permissions?.CanInviteUsers ?? false,
-                    CanPinMessages = chat.Permissions?.CanPinMessages ?? false
-                };
-                return CacheData.UserPermissions[chatId][0];
-            }
+            return CacheData.UserPermissions[chatId][0];
         }
         
-        CacheData.UserPermissions[chatId][(long)userId] = userPrivileges;
-
-        return userPrivileges;
+        // TODO - reload permissions time by time. No notification is sent by Telegram
+        // TODO - get chat admins too
+        var chat = await BotClient!.GetChatAsync(chatId);
+        CacheData.UserPermissions[chatId][0] = new UserPrivileges
+        {
+            CanManageChat = false,
+            CanPostMessages = chat.Permissions?.CanSendMessages ?? false,
+            CanEditMessages = false,
+            CanDeleteMessages = false,
+            CanManageVoiceChats = false,
+            CanRestrictMembers = false,
+            CanPromoteMembers = false,
+            CanChangeInfo = chat.Permissions?.CanChangeInfo ?? false,
+            CanInviteUsers = chat.Permissions?.CanInviteUsers ?? false,
+            CanPinMessages = chat.Permissions?.CanPinMessages ?? false
+        };
+        return CacheData.UserPermissions[chatId][0];
     }
     private void MigrateFromV3(Message message)
     {
@@ -661,9 +631,15 @@ internal class TelegramManager
         if (CacheData.ControlChatId == 0) return;
         BotClient!.SendTextMessageAsync(CacheData.ControlChatId,message);
     }
+    
+    /// <summary>
+    /// Get Bot's privileges in chat
+    /// </summary>
+    /// <param name="chatId">The target chat id</param>
+    /// <returns>True if bot is chat admin</returns>
     private bool LoadChatPermissions(long chatId)
     {
-        Common.Utils.WriteLine("Getting permissions from chat(s)");
+        Common.Utils.WriteLine("Getting bot's permissions for chat(s)");
             
         var chatMember = BotClient!.GetChatMemberAsync(chatId, _myId).Result;
         if (chatMember is ChatMemberAdministrator chatMemberAdministrator)
@@ -683,9 +659,45 @@ internal class TelegramManager
             };
             return true;
         }
-        
-        BotClient!.SendTextMessageAsync(chatId, "Bot must be set as Administrator to work properly").Wait();
+
+        if (!CacheData.UserPermissions.ContainsKey(chatId)) return false;
+        if (!CacheData.UserPermissions[chatId].ContainsKey(0)) return false;
+        if (CacheData.UserPermissions[chatId][0].CanPostMessages)
+        {
+            BotClient!.SendTextMessageAsync(chatId, "Bot must be set as Administrator to work properly").Wait();
+        }
+
         return false;
     }
+
+    /// <summary>
+    /// Get all chat admins and fill <see cref="CacheData.UserPermissions"/> with obtained data
+    /// </summary>
+    /// <param name="chatId">The target chat id</param>
+    private async void GetChatAdmins(long chatId)
+    {
+        if (!CacheData.UserPermissions.ContainsKey(chatId))
+            CacheData.UserPermissions[chatId] = new Dictionary<long, UserPrivileges>();
+        
+        var chatAdmins = await BotClient!.GetChatAdministratorsAsync(chatId);
+        foreach (var chatMember in chatAdmins)
+        {
+            var chatAdmin = (ChatMemberAdministrator) chatMember;
+            CacheData.UserPermissions[chatId][chatMember.User.Id] = new UserPrivileges
+            {
+                CanManageChat = chatAdmin.CanManageChat,
+                CanPostMessages = chatAdmin.CanPostMessages ?? false,
+                CanEditMessages = chatAdmin.CanEditMessages ?? false,
+                CanDeleteMessages = chatAdmin.CanDeleteMessages,
+                CanManageVoiceChats = chatAdmin.CanManageVoiceChats,
+                CanRestrictMembers = chatAdmin.CanRestrictMembers,
+                CanPromoteMembers = chatAdmin.CanPromoteMembers,
+                CanChangeInfo = chatAdmin.CanChangeInfo,
+                CanInviteUsers = chatAdmin.CanInviteUsers,
+                CanPinMessages = chatAdmin.CanPinMessages ?? false
+            };
+        }
+    }
+    
     #endregion
 }
