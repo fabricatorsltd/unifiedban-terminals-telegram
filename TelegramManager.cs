@@ -380,7 +380,10 @@ internal class TelegramManager
             Payload = message
         };
 
-        var json = JsonConvert.SerializeObject(queueMsg);
+        var json = JsonConvert.SerializeObject(queueMsg, new JsonSerializerSettings()
+        {
+            ReferenceLoopHandling = ReferenceLoopHandling.Ignore
+        });
         var body = Encoding.UTF8.GetBytes(json);
 
         if (message.Text.StartsWith(queueMsg.UBChat.CommandPrefix))
@@ -435,7 +438,10 @@ internal class TelegramManager
                 Payload = message
             };
 
-            var json = JsonConvert.SerializeObject(queueMsg);
+            var json = JsonConvert.SerializeObject(queueMsg, new JsonSerializerSettings()
+            {
+                ReferenceLoopHandling = ReferenceLoopHandling.Ignore
+            });
             var body = Encoding.UTF8.GetBytes(json);
 
             RabbitManager.PublishMessage(CacheData.MemberJoinQueue.Exchange, CacheData.MemberJoinQueue.RoutingKey, body);
